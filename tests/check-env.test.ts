@@ -15,8 +15,15 @@ describe('checkEnv', () => {
     expect(r.ok).toBe(true);
   });
 
-  it('does not enforce release rules without CHECK_RELEASE', () => {
+  it('does not enforce release rules without CHECK_RELEASE or when it is clearly off', () => {
     expect(checkEnv({}).ok).toBe(true);
+    for (const off of ['', '0', 'false', 'No', ' off ']) expect(checkEnv({ CHECK_RELEASE: off }).ok).toBe(true);
+  });
+
+  it.each(['TRUE', 'True', 'yes', ' 1 ', 'on', 'banana'])('treats CHECK_RELEASE=%j as release (fail closed)', (v) => {
+    const r = checkEnv({ CHECK_RELEASE: v });
+    expect(r.ok).toBe(false);
+    expect(r.errors.join(' ')).toContain('FREEZE_AT_ISO');
   });
 
   it.each(['FREEZE_AT_ISO', 'EVENT_SLUG', 'SCOREBOARD_URL'])('release refuses a missing %s', (k) => {

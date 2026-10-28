@@ -1,0 +1,15 @@
+{
+  "_note": "PROVISIONAL fixture. Invented for tests from general knowledge of EnoEngine-style scoreboards. It is NOT a copy of the club's scoreboard.json and proves nothing about it.",
+  "currentRound": 12,
+  "timestamp": "2026-10-31T11:00:00+05:30",
+  "teams": [
+    { "teamId": 1, "teamName": "Alpha", "totalPoints": 1500.5, "attackPoints": 800, "defensePoints": 400.5, "serviceLevelAgreementPoints": 300,
+      "services": [ { "serviceName": "docuvault", "status": "OK" }, { "serviceName": "pulsechat", "status": "MUMBLE" } ] },
+    { "teamId": 2, "teamName": "Bravo", "totalPoints": 1200, "attackPoints": 500, "defensePoints": 400, "serviceLevelAgreementPoints": 300,
+      "services": [ { "serviceName": "docuvault", "status": "OFFLINE" }, { "serviceName": "pulsechat", "status": "OK" } ] },
+    { "teamId": 3, "teamName": "Charlie", "totalPoints": 1200, "attackPoints": 450, "defensePoints": 450, "serviceLevelAgreementPoints": 300,
+      "services": [ { "serviceName": "docuvault", "status": "OK" }, { "serviceName": "pulsechat", "status": "RECOVERING" } ] },
+    { "teamId": 4, "teamName": "Delta", "totalPoints": 900, "attackPoints": 300, "defensePoints": 300, "serviceLevelAgreementPoints": 300,
+      "services": [ { "serviceName": "docuvault", "status": "OK" }, { "serviceName": "pulsechat", "status": "OK" } ] }
+  ]
+}

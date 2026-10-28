@@ -1,0 +1,20 @@
+{
+  "_note": "PROVISIONAL. Field names follow the usual EnoEngine-style scoreboard layout from general knowledge; NO real scoreboard.json sample has been seen. Replace with the real paths when docs/club-inputs/scoreboard.sample.json exists (see docs/SOURCE_MAPPING.md).",
+  "teamsPath": "teams",
+  "round": "currentRound",
+  "timestamp": "timestamp",
+  "team": {
+    "id": "teamId",
+    "name": "teamName",
+    "total": "totalPoints",
+    "attack": "attackPoints",
+    "defense": "defensePoints",
+    "sla": "serviceLevelAgreementPoints"
+  },
+  "services": {
+    "path": "services",
+    "key": "serviceName",
+    "status": "status",
+    "statusMap": { "OK": "ok", "MUMBLE": "mumble", "OFFLINE": "offline" }
+  }
+}

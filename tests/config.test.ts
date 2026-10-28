@@ -36,6 +36,8 @@ describe('parseConfig', () => {
     [{ FREEZE_AT_ISO: 'tomorrow' }, 'FREEZE_AT_ISO'],
     [{ SHOW_SERVICE_STATUS: 'maybe' }, 'SHOW_SERVICE_STATUS'],
     [{ BASE_PATH: '/a?b=1' }, 'BASE_PATH'],
+    [{ BASE_PATH: '//evil.test' }, 'BASE_PATH'],
+    [{ BASE_PATH: '/a//b' }, 'BASE_PATH'],
     [{ SUPABASE_SECRET_KEY: 'short' }, 'SUPABASE_SECRET_KEY'],
   ])('rejects %j', (env, name) => {
     expect(() => parseConfig(env)).toThrowError(ConfigError);

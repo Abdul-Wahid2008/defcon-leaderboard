@@ -44,7 +44,9 @@ const schema = z.object({
   FREEZE_AT_ISO: isoDate,
   EVENT_END_ISO: isoDate,
   SHOW_SERVICE_STATUS: bool(false),
-  BASE_PATH: opt(z.string().regex(/^\/[A-Za-z0-9/_-]*$/, 'must start with / and contain no query or dots')),
+  BASE_PATH: opt(
+    z.string().regex(/^\/[A-Za-z0-9/_-]*$/, 'must start with / and contain no query or dots').refine((s) => !s.includes('//'), 'must not contain //'),
+  ),
   SUPABASE_URL: httpUrl,
   SUPABASE_SECRET_KEY: opt(z.string().min(20)),
   RATE_LIMIT_PER_MIN: posInt(120, 10, 10_000),

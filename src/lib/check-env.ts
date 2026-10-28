@@ -11,7 +11,9 @@ const LOOPBACK = new Set(['127.0.0.1', '::1', 'localhost']);
 export function checkEnv(env: Record<string, string | undefined>): CheckResult {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const release = env.CHECK_RELEASE === '1' || env.CHECK_RELEASE === 'true';
+  // Fail closed: any non-empty CHECK_RELEASE that is not a clear "off" value turns the release rules on.
+  const flag = (env.CHECK_RELEASE ?? '').trim().toLowerCase();
+  const release = flag !== '' && !['0', 'false', 'no', 'off'].includes(flag);
 
   try {
     parseConfig(env);
