@@ -26,12 +26,13 @@ export const STATE_LABEL: Record<PublicMeta['state'], string> = {
 };
 
 /** Plain-language banner for every state that is not simply "live". */
-export function bannerText(meta: PublicMeta, ageSec: number | null): string | null {
+// The age lives in the header, not here: a ticking number in a live region would be announced every second.
+export function bannerText(meta: PublicMeta): string | null {
   switch (meta.state) {
     case 'frozen':
       return `Scores are frozen at round ${meta.frozenAtRound ?? meta.round ?? '?'}. Final results will be announced.`;
     case 'stale':
-      return `Scores have not updated for ${ageSec === null ? 'a while' : ageText(ageSec)}. These are the last scores received.`;
+      return 'Scores are not updating right now. These are the last scores received.';
     case 'pre_event':
       return 'The event has not started yet.';
     case 'unavailable':

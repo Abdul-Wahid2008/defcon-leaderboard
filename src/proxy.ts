@@ -12,6 +12,11 @@ export function proxy(req: NextRequest) {
     return new NextResponse('Bad request', { status: 400 });
   }
 
+  // Public and read-only: anything but GET, HEAD or OPTIONS gets a minimal 405 (the framework answers TRACE with a 500).
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return new NextResponse('{"error":"method_not_allowed"}', { status: 405, headers: { Allow: 'GET, HEAD, OPTIONS', 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
+  }
+
   // JSON routes carry no markup, so they need no CSP.
   if (req.nextUrl.pathname.startsWith('/api/')) return NextResponse.next();
 

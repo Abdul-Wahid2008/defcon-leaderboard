@@ -82,6 +82,9 @@ server {
     listen 80;                      # add `listen 443 ssl;` + certificates when TLS exists
     server_name _;                  # replace with the real name
 
+    # Public and read-only. Next.js answers TRACE with a generic 500 before the app sees it, so refuse other methods here.
+    if ($request_method !~ ^(GET|HEAD|OPTIONS)$) { return 405; }
+
     # Slowloris and oversize requests (P14)
     client_header_timeout 10s;
     client_body_timeout   10s;

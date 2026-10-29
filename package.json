@@ -18,7 +18,9 @@
     "snapshot": "tsx --conditions=react-server scripts/cli.ts snapshot",
     "import-roster": "tsx --conditions=react-server scripts/cli.ts import-roster",
     "fake-scoreboard": "tsx scripts/fake-scoreboard.ts",
-    "demo:lifecycle": "tsx scripts/demo-lifecycle.ts"
+    "demo:lifecycle": "tsx scripts/demo-lifecycle.ts",
+    "qa:layout": "tsx scripts/qa-layout.ts",
+    "loadtest": "tsx scripts/loadtest.ts"
   },
   "engines": {
     "node": ">=20.12"

@@ -56,7 +56,8 @@ export async function serve(req: Request, kind: Kind, deps: Deps): Promise<Respo
   let top = 10;
   if (kind === 'history') {
     const keys = [...url.searchParams.keys()];
-    if (new Set(keys).size !== keys.length) return errorJson(400, 'bad_request');
+    // Only `top`, once. Checked by name first: zod's strict mode skips a `__proto__` key.
+    if (new Set(keys).size !== keys.length || keys.some((k) => k !== 'top')) return errorJson(400, 'bad_request');
     const q = historyQuery.safeParse(Object.fromEntries(url.searchParams));
     if (!q.success) return errorJson(400, 'bad_request');
     top = q.data.top ?? 10;

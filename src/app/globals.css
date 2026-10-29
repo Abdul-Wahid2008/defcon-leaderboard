@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Tokens. One accent colour; status colours are used only together with an icon and text. */
+/* Tokens. One accent colour; state is always carried by an icon and text as well as by colour. */
 :root {
   --bg: #0b1220;
   --panel: #111a2c;
@@ -10,6 +10,19 @@
   --accent: #5eb0ff;
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Five-size type scale: page title, section title, body, secondary, caption. */
+  --fs-title: 24px;
+  --lh-title: 32px;
+  --fs-section: 18px;
+  --lh-section: 24px;
+  --fs-body: 15px;
+  --lh-body: 22px;
+  --fs-secondary: 13px;
+  --lh-secondary: 20px;
+  --fs-caption: 12px;
+  --lh-caption: 16px;
+  --row-h: 44px;
 }
 
 @theme inline {
@@ -26,22 +39,65 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
   font-variant-numeric: tabular-nums;
 }
 
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .page {
+  font-size: var(--fs-body); /* re-resolved here so .tv scales inherited text too */
+  line-height: var(--lh-body);
   max-width: 1280px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 24px 16px 48px;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 24px;
+  min-height: 56px;
 }
 
 .title {
-  font-size: 24px;
-  line-height: 32px;
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
   font-weight: 600;
-  margin: 0 0 8px;
+  margin: 0;
+}
+
+.section-title {
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: 600;
+  margin: 0;
+}
+
+.secondary-title {
+  font-size: var(--fs-secondary);
+  line-height: var(--lh-secondary);
+  font-weight: 600;
+  color: var(--muted-fg);
+  margin: 16px 0 8px;
 }
 
 .muted {
@@ -49,11 +105,324 @@ body {
   margin: 0;
 }
 
+.status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.secondary {
+  font-size: var(--fs-secondary);
+  line-height: var(--lh-secondary);
+  color: var(--muted-fg);
+}
+
+.updated {
+  display: inline-block;
+  min-width: 21ch;
+}
+
+.round {
+  display: inline-block;
+  min-width: 10ch;
+}
+
+.icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: var(--fs-secondary);
+  line-height: var(--lh-secondary);
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.pill[data-state="live"],
+.pill[data-state="revealed"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Reserved slot so a banner appearing or disappearing never moves the table. */
+.banner-slot {
+  min-height: 48px;
+  margin: 8px 0;
+}
+
+.banner {
+  margin: 0 0 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  background: var(--panel);
+  font-size: var(--fs-secondary);
+  line-height: var(--lh-secondary);
+}
+
+.empty {
+  padding: 32px 0;
+}
+
+.board {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.board th,
+.board td {
+  height: var(--row-h);
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board thead th {
+  height: 36px;
+  font-size: var(--fs-caption);
+  line-height: var(--lh-caption);
+  font-weight: 600;
+  color: var(--muted-fg);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.board tbody th {
+  font-weight: 400;
+}
+
+.board .num {
+  text-align: right;
+  width: 112px;
+}
+
+.board th.rank,
+.board td.rank {
+  width: 64px;
+}
+
+.board .total {
+  font-weight: 600;
+}
+
+.board tbody tr {
+  cursor: pointer;
+}
+
+.board tbody tr:hover {
+  background: var(--panel);
+}
+
+/* Top three: a thin accent bar, no medals. */
+.board tr.top3 td.rank {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.team-btn {
+  all: unset;
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.team-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.delta-up {
+  color: var(--accent);
+}
+
+.delta-none {
+  color: var(--muted-fg);
+}
+
+@keyframes flash {
+  from {
+    background: rgba(94, 176, 255, 0.22);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+.row-flash {
+  animation: flash 600ms ease-out;
+}
+
+/* Drawer (native <dialog>) */
+.drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0;
+  width: min(420px, 100vw);
+  max-width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--fg);
+}
+
+.drawer::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.drawer-body {
+  padding: 20px 16px;
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0;
+  margin: 0;
+}
+
+.facts dt,
+.facts dd {
+  margin: 0;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.facts dt {
+  color: var(--muted-fg);
+}
+
+.facts dd {
+  text-align: right;
+  font-weight: 600;
+}
+
+.services {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-secondary);
+  line-height: var(--lh-secondary);
+}
+
+.spark {
+  display: block;
+  border: 1px solid var(--border);
+}
+
+/* Below 1024 px the breakdown columns would squeeze the team name: rank, team and total only; rows are tap targets. */
+@media (max-width: 1023px) {
+  .board .extra {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .board .num {
+    width: 96px;
+  }
+  .board th.rank,
+  .board td.rank {
+    width: 56px;
+  }
+  .board th,
+  .board td {
+    padding: 0 8px;
+  }
+}
+
+/* TV mode: scale with the viewport height so 30 teams fit 1080 px without scrolling, no interactive chrome. */
+.tv {
+  --fs-title: 3.2vh;
+  --lh-title: 4vh;
+  --fs-section: 2.4vh;
+  --lh-section: 3vh;
+  --fs-body: 2vh;
+  --lh-body: 2.5vh;
+  --fs-secondary: 1.7vh;
+  --lh-secondary: 2.3vh;
+  --fs-caption: 1.5vh;
+  --lh-caption: 2vh;
+  --row-h: calc((100vh - 180px) / 30);
+  max-width: none;
+  padding: 1.2vh 2vw;
+}
+
+.tv .head {
+  min-height: 0;
+}
+
+.tv .banner-slot {
+  min-height: 3.6vh;
+  margin: 0.6vh 0;
+}
+
+.tv .board th,
+.tv .board td {
+  height: var(--row-h);
+}
+
+.tv .board thead th {
+  height: 3.2vh;
+}
+
+.tv .board tbody tr {
+  cursor: default;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
 }
