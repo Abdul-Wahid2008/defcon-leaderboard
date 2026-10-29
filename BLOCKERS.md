@@ -2,10 +2,12 @@
 
 Each entry: what is blocked, the exact input needed, what was done instead.
 
-## B1 — Supabase project not created (L2)
-- Blocked: creating project `defcon-leaderboard` (ap-south-1). The prompt requires `get_cost` to show no recurring charge; this session has no `get_cost` tool, so cost cannot be verified. The only existing project is `pitch-under-pressure` (INACTIVE), which must not be touched.
-- Needed from Abdul: either create the project (or confirm the free tier has capacity), then apply `supabase/migrations/lb_init.sql` and place `SUPABASE_URL` / `SUPABASE_SECRET_KEY` in `.env.local`.
-- Done instead: migration SQL written to the repo; store code tested against a fake; app runs fully without Supabase (memory + JSONL).
+## B1 — Supabase: project created, secret key still to be placed by Abdul
+- Done (29 Oct 2026, after Abdul allowed it): project `defcon-leaderboard` created in ap-south-1 in the existing free-plan organization (the paused `pitch-under-pressure` project was not touched); migration `lb_init` applied through `apply_migration`; advisors run; types generated into `src/lib/db.types.ts`; schema verified with SELECT-only queries (RLS on all four tables, 0 policies, 0 privileges for anon/authenticated, both audit triggers present, index present).
+- Advisors: security 4 x INFO `rls_enabled_no_policy` (one per table) and performance 1 x INFO `unused_index` (the new table has had no traffic). Both are intentional: the spec requires RLS deny-all with no policies and the (event_id, team_id, round) index. Accepted, not "fixed".
+- Still needed from Abdul: put `SUPABASE_URL` (Project Settings, API) and `SUPABASE_SECRET_KEY` (the secret key; verify the current key naming in the dashboard) in `.env.local` himself. Then run a rehearsal and confirm rounds appear in `lb_rounds`/`lb_scores` and that `npm run status` shows `supabase ok, 0 round(s) not yet pushed`.
+- Not verified: the supabase-js adapter has never run with a real key; idempotent upserts and the FK order were not exercised against the live database (an attempted DML check was held back by the SQL tool's confirmation step and did not run; the tables are empty).
+- Check the project is ACTIVE before the event (free projects pause when idle).
 
 ## B2 — No real scoreboard.json sample, roster, or event times
 - Needed: `docs/club-inputs/scoreboard.sample.json`, the roster (due 30 Oct), `EVENT_START_ISO` / `FREEZE_AT_ISO` / `EVENT_END_ISO`, `SCOREBOARD_URL`, hosting/TLS facts, club confirmation of A32.

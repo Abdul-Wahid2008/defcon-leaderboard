@@ -1,5 +1,6 @@
 import 'server-only';
 import { createClient } from '@supabase/supabase-js';
+import type { Database } from '../db.types';
 import type { EventMeta, Snapshot } from './types';
 import { snapshotFromRows, type LbDb } from './supabase';
 
@@ -8,11 +9,12 @@ const PAGE = 1000; // PostgREST returns at most 1000 rows per request
 type Rows = Parameters<typeof snapshotFromRows>[2];
 
 /**
- * supabase-js adapter. Server-only, built lazily with the secret key. NOT exercised against a live project (no key in
- * this environment); the store logic above it is tested through a fake LbDb.
+ * supabase-js adapter. Server-only, built lazily with the secret key. Typed with src/lib/db.types.ts (generated from the live
+ * schema). NOT exercised with a real key (none is available to the build session); the store logic above it is tested through
+ * a fake LbDb, and the schema itself was checked with SELECT-only queries.
  */
 export function createLbDb(url: string, secretKey: string): LbDb {
-  const sb = createClient(url, secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const sb = createClient<Database>(url, secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
   return {
     async ensureEvent(meta: EventMeta) {

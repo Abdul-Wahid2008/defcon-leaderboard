@@ -33,7 +33,7 @@ Supabase-restored rounds lack `services` and `rankDelta`. Details in BUILD_STATU
 1. Real `scoreboard.json` sample (and one from the freeze window if possible): without it the board cannot work; the mapping in `config/source-map.json` is a guess.
 2. Roster (due 30 Oct), event start / freeze / end times with `+05:30`, `SCOREBOARD_URL`, hosting facts (OS, domain, TLS, CDN).
 3. Club confirmation that EnoEngine alone computes points (A32); decision on `SHOW_SERVICE_STATUS`; whether rounds can pause longer than 270 s.
-4. Supabase: create the project, apply `supabase/migrations/lb_init.sql`, put `SUPABASE_SECRET_KEY` in `.env.local` yourself, run advisors. Optional: the app runs on memory + JSONL without it.
+4. Supabase: project, migration, advisors and types are DONE; put `SUPABASE_URL` and `SUPABASE_SECRET_KEY` in `.env.local` yourself and rehearse. Optional: the app runs on memory + JSONL without it.
 
 ## Do first
 
@@ -44,4 +44,4 @@ Supabase-restored rounds lack `services` and `rankDelta`. Details in BUILD_STATU
 
 ## Not done
 
-L8 (live rehearsal with real inputs), the Supabase project and advisors, rank-by-round chart, anything on a real network or phones.
+L8 (live rehearsal with real inputs), the adapter run with a real Supabase key, rank-by-round chart, anything on a real network or phones.

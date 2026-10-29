@@ -1,6 +1,6 @@
 # BUILD STATUS: DEFCON Leaderboard
 
-Last updated: 29 Oct 2026 (overnight job, slices L0 to L7). Repo: `defcon-leaderboard`, branch `main`, nothing pushed, no remote.
+Last updated: 29 Oct 2026 (overnight job, slices L0 to L7, plus a follow-up session that completed L2's Supabase part, re-reviewed L5/L6 and pushed). Repo: `defcon-leaderboard`, branch `main`, nothing pushed, no remote.
 
 **One-line state:** the application is built and passes every gate on the local machine against a FAKE scoreboard. It has never seen the club's real
 `scoreboard.json`, a real roster, real event times, nginx, TLS or Supabase. Treat everything below as "works against our assumptions", not as "ready for the event".
@@ -11,7 +11,7 @@ Last updated: 29 Oct 2026 (overnight job, slices L0 to L7). Repo: `defcon-leader
 |---|---|---|---|
 | L0 scaffold | green | `5d0da14` `lb-L0` | typecheck, lint 0 errors, 34 tests, build |
 | L1 source, parser, ranking | green | `3760863` `lb-L1` | 129 tests (+1 skipped), `src/lib/source` branch coverage 98.19% |
-| L2 stores | green, Supabase part NOT exercised | `0249ccb` `lb-L2` | 166 tests (+1 skipped), build, client-bundle grep |
+| L2 stores | green; Supabase project created and schema applied, adapter not run with a real key | `0249ccb` `lb-L2` (+ follow-up commit for types and project) | 166 tests (+1 skipped), build, client-bundle grep |
 | L3 collector, freeze, CLI, API | green | `d03c549` `lb-L3` | 222 to 234 tests, build, lifecycle demo PASS |
 | L4 UI | green | `cf91d8f` `lb-L4` | 234 tests (+1 skipped), build, `qa:layout` clean, prove-mode clean |
 | L5 attack and load | green (docs and script fixes in the L5 to L7 commit) | see git log, `ccc07d5` `lb-L5` | `attack` 96/96, `loadtest` PASS, `npm audit --omit=dev` 0 vulnerabilities |
@@ -26,7 +26,7 @@ The skipped test is the real-sample test in `tests/source.sample.test.ts`; it ru
 - `src/lib/source/`: fetcher (host allow-list, 5 s timeout, `redirect:'error'`, no credentials, 2 MB streamed cap, content-type check, errors are short codes only), mapping-driven parser (`config/source-map.json`, zod, all-or-nothing, unknown shape = `SOURCE_SHAPE_UNKNOWN`), name sanitiser (control/bidi/zero-width stripped, 40 chars), competition ranker (1,2,2,4) with `rankDelta`, roster overrides (display names only).
 - `src/lib/collector.ts`: single-flight pull, jittered poll loop (`POLL_SEC`), lazy refresh when the last attempt is older than 2 x poll. Stores a round only when its number is new. A round going backwards, a store write failure and any unexpected exception count as failures and are never "live".
 - `src/lib/store/`: `SnapshotStore`; memory ring (500), append-only JSONL (`data/snapshots.jsonl`, datasync per round, truncated last line tolerated), Supabase store behind an `LbDb` interface (retry with backoff, per-attempt timeout), `FallbackStore` (memory + JSONL first, Supabase queued in the background and backfilled, 30 s outage cooldown, no duplicates). Startup merges JSONL and Supabase by round, local wins.
-- `supabase/migrations/lb_init.sql`: schema per spec section 5, RLS on all four tables, no policies, anon/authenticated revoked, append-only audit table (UPDATE, DELETE and TRUNCATE blocked). **Not applied anywhere.**
+- `supabase/migrations/lb_init.sql`: schema per spec section 5, RLS on all four tables, no policies, anon/authenticated revoked, append-only audit table (UPDATE, DELETE and TRUNCATE blocked). **Applied** to the Supabase project `defcon-leaderboard` (ap-south-1) on 29 Oct 2026 via `apply_migration`; `src/lib/db.types.ts` generated from it and used to type the adapter.
 
 ### Public behaviour
 - State machine (`src/lib/state.ts`, injected clock, table-tested): `pre_event | live | stale | frozen | revealed | unavailable`. Frozen takes precedence over stale/failing source. `live` requires a stored round newer than `STALE_AFTER_SEC` (freshness is the age of the newest stored round, so an engine repeating one round goes stale).
@@ -86,7 +86,7 @@ Reviews: a fresh read-only subagent reviewed L2, L3, L4 and later L5/L6 (and L0+
 ## 6. Known limits and risks
 
 - **Everything depends on the unseen scoreboard format.** The field names in `config/source-map.json` and the status strings (`OK`, `MUMBLE`, `OFFLINE`) are PROVISIONAL. The parser fails closed on a mismatch, so a wrong guess shows `unavailable`/`stale`, not wrong numbers, but the board will not work until the mapping is confirmed (`docs/SOURCE_MAPPING.md`).
-- Supabase adapter (`src/lib/store/supabase-db.ts`) has never talked to a real project. `lb_init.sql` was not applied; advisors were not run.
+- Supabase adapter (`src/lib/store/supabase-db.ts`) has never run with a real secret key. The project exists and the schema is applied and verified with SELECT-only queries (RLS on 4 of 4 tables, 0 policies, 0 anon/authenticated privileges, both audit triggers, index). Advisors: 4 INFO `rls_enabled_no_policy` and 1 INFO `unused_index`, all intentional (spec: deny-all RLS; required index on an empty table). Idempotent upserts and FK order were not exercised against the live DB.
 - The remote write of a round is two calls (round row, then scores) with no transaction; a partial write is repaired by the next restart (re-queue) and by idempotent upserts.
 - TRACE returns Next's generic 500 (nginx must refuse non-GET/HEAD/OPTIONS methods).
 - With a CDN in front (Cloudflare), the right-most `X-Forwarded-For` is the edge address: per-client limiting then needs the CDN's own header; undecided because hosting is unknown.
@@ -99,7 +99,7 @@ Reviews: a fresh read-only subagent reviewed L2, L3, L4 and later L5/L6 (and L0+
 
 | # | Needed | From |
 |---|---|---|
-| B1 | Create Supabase project `defcon-leaderboard` (cost check was impossible: the session had no `get_cost`), apply `supabase/migrations/lb_init.sql`, place `SUPABASE_URL` / `SUPABASE_SECRET_KEY` in `.env.local` yourself, run advisors | Abdul |
+| B1 | Place `SUPABASE_URL` / `SUPABASE_SECRET_KEY` in `.env.local` yourself and rehearse once (project, migration, advisors and types are done). Cost: the session had no `get_cost`; `create_project` quoted no charge and created the project on the free plan, but confirm in the dashboard that the org shows no recurring charge | Abdul |
 | B2a | Real `scoreboard.json` sample as `../defcon-control-center/docs/club-inputs/scoreboard.sample.json`, then edit `config/source-map.json` and the fixtures | Club |
 | B2b | Team roster (due 30 Oct): `npm run import-roster -- <file>` | Club |
 | B2c | `EVENT_START_ISO`, `FREEZE_AT_ISO`, `EVENT_END_ISO` with offsets | Club |
@@ -112,13 +112,13 @@ Reviews: a fresh read-only subagent reviewed L2, L3, L4 and later L5/L6 (and L0+
 
 - L8 (real sample, roster, live rehearsal, comparison with the club's view): needs real inputs.
 - Pre-flight items that were Abdul's (power settings, `claude mcp list`, dashboard repo merge and push).
-- Supabase project creation and advisors (B1). A second attempt to create the project through the Supabase MCP was refused by the permission classifier ("Modify Shared Resources"); it was not retried another way. The organization is on the free plan with one paused project (`pitch-under-pressure`, untouched).
+- Supabase with a real key (B1): the first `create_project` call was refused by the permission classifier; after Abdul allowed it, the project was created, migrated, checked and typed. The secret key was never seen.
 - Rank-by-round sparkline (totals only).
 
 ## 9. First things to do in the morning
 
 1. Read section 7, send the club the list in B2 (sample file first: it decides whether the app works at all).
-2. Create the Supabase project (or decide to run on memory + JSONL, which is fully supported) and apply `lb_init.sql` (B1).
+2. Put the Supabase URL and secret key in `.env.local` yourself (B1) and rehearse once, or decide to run on memory + JSONL, which is fully supported.
 3. When the sample arrives: edit `config/source-map.json`, drop the file in `club-inputs`, run `npm test` (the skipped test starts running), then `npm run demo:lifecycle`.
 4. Run `CHECK_RELEASE=1 npm run check-env` with the real env, then follow `docs/GOLIVE_CHECKLIST.md`.
 5. Decide TLS/domain and CDN with the host owner, then test the nginx block from `DEPLOY.md`.
