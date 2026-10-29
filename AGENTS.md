@@ -3,7 +3,7 @@
 > Also provided as `AGENTS.md` for other coding tools. Keep the two identical.
 
 ## STATUS (update at the end of every work session)
-- Date/slice: 29 Oct 2026 — L0 scaffold in progress. See `docs/OVERNIGHT_LOG.md` and `BLOCKERS.md`.
+- Date/slice: 29 Oct 2026 — L0, L1, L2 done (stores). Next: L3 collector, freeze, CLI, API. See `docs/OVERNIGHT_LOG.md` and `BLOCKERS.md`.
 - Inputs still missing from the club: real `scoreboard.json` sample, team roster (due 30 Oct), event start/freeze/end times, hosting/TLS facts, confirmation that EnoEngine alone computes scores (A32).
 
 ## What this is
