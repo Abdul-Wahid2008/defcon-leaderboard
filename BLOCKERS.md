@@ -10,3 +10,12 @@ Each entry: what is blocked, the exact input needed, what was done instead.
 ## B2 — No real scoreboard.json sample, roster, or event times
 - Needed: `docs/club-inputs/scoreboard.sample.json`, the roster (due 30 Oct), `EVENT_START_ISO` / `FREEZE_AT_ISO` / `EVENT_END_ISO`, `SCOREBOARD_URL`, hosting/TLS facts, club confirmation of A32.
 - Done instead: PROVISIONAL mapping and fixture; parser fails closed.
+
+## B3 — Show service status publicly?
+- Needed: club decision. Default `SHOW_SERVICE_STATUS=false` (a public "service down" list helps attackers).
+
+## B4 — Can rounds pause for longer than 270 s?
+- The board says "not updating" when no new round has been stored for `STALE_AFTER_SEC`. A deliberate pause (break, phase change) longer than that would show the banner. Needed: club answer, then adjust `STALE_AFTER_SEC`.
+
+## B5 — Hosting topology
+- Needed: OS, public domain or not, TLS or not, any CDN. Affects `TRUST_PROXY`, per-client limiting and the nginx block (docs/DEPLOY.md is untested).

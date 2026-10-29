@@ -21,3 +21,27 @@ Append after every slice: time, slice, commit hash, gate results, decisions made
 - NOT run: the supabase-js adapter against a real project (no key, no project). `get_advisors` not run (B1). The SQL has not been applied anywhere.
 - Reviewer (fresh subagent, read-only) 7 findings. Applied: local wins on startup merge (remote lacks services/rankDelta); a remote round with fewer teams than local is re-queued; JSONL newline guard after a failed write; saves no longer await the remote (flush is background, drains rounds queued mid-flush); 5 s timeout on the startup remote read; TRUNCATE trigger on lb_audit. Not applied: making the remote round+scores upsert one transaction (needs a Postgres RPC; the FK forces rounds-first; repair is by re-queue and idempotent upsert); memory-ring pending drop (unreachable at ~110 rounds).
 - Decision: startup rebuild merges JSONL and Supabase by round (local wins) instead of strict Supabase-then-JSONL, so no data is lost either way.
+
+## L3 — Collector, freeze, control CLI, public API (29 Oct 2026) — `d03c549`
+- Gates: typecheck 0 · lint 0 errors · vitest 234 passed + 1 skipped in 15 files at the end of L3/L4 · build 0.
+- Demo (`npm run demo:lifecycle`, production build, fake source, real CLI): PASS. pre_event, live, garbage source gives stale with 30 teams kept, recovery to live, frozen (visible round 62 while the source reached 73; history max 62), wrong slug refused, reveal gives round 74, unreveal back to 62.
+- Reviewer (fresh subagent, read-only): no freeze leak found. Applied: one shared limiter bucket could lock everyone out (now no limiting without a trustworthy key, full table fails open); a failing store no longer looks live; freshness follows the newest stored round; contained exceptions in a tick; `unreveal` immediate (reveal flag in the cache key); atomic roster import with `.bak`; audit line written before the control file. Not applied: Supabase round-trip timestamp trust (the adapter stores and returns `captured_at` unchanged); register() retry logging.
+- Decision: `store_error`, `round_backwards` and unexpected throws all count as source failures.
+
+## L4 — UI (29 Oct 2026) — `cf91d8f`
+- Gates as above; `npm run qa:layout` clean after fixing real findings it produced (TV text did not scale because body font-size was inherited as a computed value; the status line moved by a few pixels; the first drawer run failed because CDP needed the Enter key's text). `--prove` shows each check fires on a deliberate violation.
+- Reviewer (fresh subagent): 12 findings, 11 applied. Notable: team names were truncated at 768 px (columns now hide below 1024 px), a ticking age inside a live region, rank change had no reliable accessible name, two polling chains possible after a slow fetch, drawer width on phones. Not applied: opening the drawer from a row click does not restore focus to the row (the keyboard path does).
+- Skipped: rank-by-round sparkline (history carries totals only).
+- NOT run: real phones, real browsers other than headless Chrome, screen reader.
+
+## L5 — Attack and load (29 Oct 2026)
+- `npm run attack`: 81 attempts, first run 4 failures: test client bug (non-ASCII URL), `__proto__` key ignored by the framework, TRACE generic 500 (accepted, nginx blocks the method), one over-strict expectation. Final run 0 failed. Table in `docs/SECURITY_PASS.md`.
+- `npm run loadtest`: 10-minute run failed its own RSS check only because the baseline was the cold process; the check now uses the warmed-up baseline. 6-minute rerun passes. Numbers in SECURITY_PASS.md.
+- `npm audit --omit=dev`: 0 vulnerabilities.
+- Not reviewed by a separate subagent.
+
+## L6 — Deployment docs (29 Oct 2026)
+- `docs/DEPLOY.md`, `docs/EVENT_RUNBOOK.md`, `docs/GOLIVE_CHECKLIST.md` written. NOT executed or validated on any host; every command is marked verify on the target OS. nginx block refuses methods other than GET/HEAD/OPTIONS because of the TRACE finding.
+
+## L7 — Morning report (29 Oct 2026)
+- `docs/MORNING_REPORT.md` and `docs/BUILD_STATUS.md` written. Final gate re-run before the commit (see BUILD_STATUS section 3).
