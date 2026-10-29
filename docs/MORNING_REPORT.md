@@ -11,9 +11,9 @@ Full detail, evidence, decisions and limits: `docs/BUILD_STATUS.md`. Attack and 
 | L2 stores (Supabase part unexercised) | green | `0249ccb` (`lb-L2`) |
 | L3 collector, freeze, CLI, API | green | `d03c549` (`lb-L3`) |
 | L4 UI | green | `cf91d8f` (`lb-L4`) |
-| L5 attack and load | green | `lb-L5` (see `git log`) |
-| L6 deploy docs, runbook, checklist | written, not executed | `lb-L6` |
-| L7 this report | done | `lb-L7` |
+| L5 attack and load | green | `ccc07d5` (`lb-L5`) |
+| L6 deploy docs, runbook, checklist | written, not executed | `ccc07d5` (`lb-L6`) |
+| L7 this report | done | `ccc07d5` (`lb-L7`) |
 
 No slice is wip or blocked. Two things inside slices are blocked: Supabase (B1) and anything that needs the club's inputs (B2).
 

@@ -45,3 +45,4 @@ Append after every slice: time, slice, commit hash, gate results, decisions made
 
 ## L7 — Morning report (29 Oct 2026)
 - `docs/MORNING_REPORT.md` and `docs/BUILD_STATUS.md` written. Final gate re-run before the commit (see BUILD_STATUS section 3).
+- Note: L5, L6 and L7 share one commit (ccc07d5); the tags lb-L5, lb-L6, lb-L7 all point at it (the L5 code fixes are inside cf91d8f).

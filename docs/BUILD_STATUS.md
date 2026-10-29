@@ -14,9 +14,9 @@ Last updated: 29 Oct 2026 (overnight job, slices L0 to L7). Repo: `defcon-leader
 | L2 stores | green, Supabase part NOT exercised | `0249ccb` `lb-L2` | 166 tests (+1 skipped), build, client-bundle grep |
 | L3 collector, freeze, CLI, API | green | `d03c549` `lb-L3` | 222 to 234 tests, build, lifecycle demo PASS |
 | L4 UI | green | `cf91d8f` `lb-L4` | 234 tests (+1 skipped), build, `qa:layout` clean, prove-mode clean |
-| L5 attack and load | green (docs and script fixes in the L5 to L7 commit) | see git log, tag `lb-L5` | `attack` 81/81, `loadtest` PASS, `npm audit --omit=dev` 0 vulnerabilities |
-| L6 deploy docs, runbook, checklist | written, NOT executed anywhere | tag `lb-L6` | docs only; every command marked "verify on the target OS" |
-| L7 this report | done | tag `lb-L7` | final gate re-run, see section 6 |
+| L5 attack and load | green (docs and script fixes in the L5 to L7 commit) | see git log, `ccc07d5` `lb-L5` | `attack` 81/81, `loadtest` PASS, `npm audit --omit=dev` 0 vulnerabilities |
+| L6 deploy docs, runbook, checklist | written, NOT executed anywhere | `ccc07d5` `lb-L6` | docs only; every command marked "verify on the target OS" |
+| L7 this report | done | `ccc07d5` `lb-L7` | final gate re-run, see section 6 |
 
 The skipped test is the real-sample test in `tests/source.sample.test.ts`; it runs once `docs/club-inputs/scoreboard.sample.json` exists.
 
