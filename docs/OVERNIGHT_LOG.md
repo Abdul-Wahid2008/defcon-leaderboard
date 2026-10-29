@@ -54,3 +54,4 @@ Append after every slice: time, slice, commit hash, gate results, decisions made
 - Result: attack 96/96, load 5-min PASS (page loads included).
 - Supabase (after Abdul allowed it): `create_project` defcon-leaderboard (ap-south-1, free-plan org, no cost quoted); `apply_migration` lb_init OK; advisors: security 4 x INFO rls_enabled_no_policy, performance 1 x INFO unused_index (both intentional, see BLOCKERS B1); SELECT-only schema check passed; `src/lib/db.types.ts` generated and the adapter now uses `createClient<Database>`. No secret key was requested or seen. A DML idempotency check through `execute_sql` did not run (confirmation step); tables are empty.
 - Push: new PUBLIC GitHub repo created and `main` plus tags lb-L0..lb-L7 pushed (see the end of this file for the final hash).
+- Final: pushed main at 7b9334e (commit 'feat(store): L2 Supabase project...'), tag lb-L2b-supabase.
