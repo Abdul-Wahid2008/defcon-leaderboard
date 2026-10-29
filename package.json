@@ -9,7 +9,16 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
     "test": "vitest run",
-    "check-env": "tsx scripts/check-env.ts"
+    "check-env": "tsx scripts/check-env.ts",
+    "status": "tsx --conditions=react-server scripts/cli.ts status",
+    "peek": "tsx --conditions=react-server scripts/cli.ts peek",
+    "reveal": "tsx --conditions=react-server scripts/cli.ts reveal",
+    "unreveal": "tsx --conditions=react-server scripts/cli.ts unreveal",
+    "refresh": "tsx --conditions=react-server scripts/cli.ts refresh",
+    "snapshot": "tsx --conditions=react-server scripts/cli.ts snapshot",
+    "import-roster": "tsx --conditions=react-server scripts/cli.ts import-roster",
+    "fake-scoreboard": "tsx scripts/fake-scoreboard.ts",
+    "demo:lifecycle": "tsx scripts/demo-lifecycle.ts"
   },
   "engines": {
     "node": ">=20.12"
