@@ -46,3 +46,9 @@ Append after every slice: time, slice, commit hash, gate results, decisions made
 ## L7 — Morning report (29 Oct 2026)
 - `docs/MORNING_REPORT.md` and `docs/BUILD_STATUS.md` written. Final gate re-run before the commit (see BUILD_STATUS section 3).
 - Note: L5, L6 and L7 share one commit (ccc07d5); the tags lb-L5, lb-L6, lb-L7 all point at it (the L5 code fixes are inside cf91d8f).
+
+## Follow-up session (29 Oct 2026): complete through L6 and verify
+- Re-ran everything on the current tree: typecheck, lint, 234 tests, build, lifecycle demo (PASS), `qa:layout --prove` and full run (clean), attack, load. All green.
+- Supabase: `list_projects`/`list_organizations`/`get_organization` (read-only) show one free-plan org with only the paused `pitch-under-pressure`. `create_project` was refused by the permission classifier; not retried. B1 therefore still stands; nothing was applied, no advisors, no generated types (`src/lib/db.types.ts` not created).
+- L5/L6 reviewer (fresh subagent, read-only): about 30 findings. Applied: all attack-script gaps and weak assertions, load-test fixes, DEPLOY.md/RUNBOOK/GOLIVE corrections, JSON body on the proxy 400. Not applied: singleflight on concurrent cache misses (cheap, not needed), caching the over-size 503 body.
+- Result: attack 96/96, load 5-min PASS (page loads included).

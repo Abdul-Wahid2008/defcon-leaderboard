@@ -9,7 +9,7 @@ export function proxy(req: NextRequest) {
   try {
     decodeURIComponent(req.nextUrl.pathname);
   } catch {
-    return new NextResponse('Bad request', { status: 400 });
+    return new NextResponse('{"error":"bad_request"}', { status: 400, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
   }
 
   // Public and read-only: anything but GET, HEAD or OPTIONS gets a minimal 405 (the framework answers TRACE with a 500).

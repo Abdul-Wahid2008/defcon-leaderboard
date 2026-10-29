@@ -16,7 +16,7 @@ surface: if you cannot reach the host, you cannot change the board. Linux comman
 
 1. Source first: confirm the club's `scoreboard.json` URL answers (`curl -s -o /dev/null -w "%{http_code}\n" <SCOREBOARD_URL>`, verify on the target OS).
 2. `CHECK_RELEASE=1 npm run check-env` must print no `FAIL`. Confirm `FREEZE_AT_ISO` is the agreed time **with the correct offset** (IST is `+05:30`).
-3. Start the app (systemd: `sudo systemctl start defcon-leaderboard`; see `DEPLOY.md`), then nginx.
+3. Start the app (systemd: `sudo systemctl start defcon-leaderboard`, verify on the target OS; see `DEPLOY.md`), then nginx.
 4. `npm run status`. Expect: a collector heartbeat of a few seconds, `last good fetch` a few seconds ago, `freeze at` set, `revealed false`,
    roster match count equal to the number of teams.
 5. Open the public address on a phone on the event network. State should be `pre_event` or `live`, never `unavailable`.
@@ -37,7 +37,7 @@ At `FREEZE_AT_ISO` the server stops serving anything captured later, by itself. 
 
 1. Club lead says "reveal".
 2. `npm run reveal` and type the event slug when asked (or `npm run reveal -- --slug <slug>`). A wrong slug changes nothing.
-3. Within about 5 s the public state becomes `revealed` with the newest round. Check on a phone.
+3. Clear the nginx cache (`DEPLOY.md`, verify on the target OS). Within about 5 s the public state becomes `revealed` with the newest round. Check on a phone.
 4. To undo (revealed too early): `npm run unreveal`. The board returns to the frozen round.
 
 ### What to tell participants
@@ -66,10 +66,11 @@ Copy `data/` off the host after the event. `data/` is git-ignored.
 1. `sudo systemctl status defcon-leaderboard` / `journalctl -u defcon-leaderboard -n 50` (verify on the target OS). `Restart=always` should bring it back; history is rebuilt from `data/snapshots.jsonl` on start.
 2. If it will not start: `npm run snapshot` writes `data/static/final.json` and `final.html` for **exactly what the public currently sees** (frozen stays frozen). Serve `final.html` from nginx (the commented `location` in `DEPLOY.md`).
 3. Run `snapshot` once after reveal too, as the permanent record.
+4. Backups: run the loop below under `nohup`, `tmux` or a systemd timer (verify on the target OS) so it survives the terminal closing.
 
 ## Rollback
 
-Tag the last good commit before the event (`lb-L7` or later). To roll back: `git checkout <tag>`, `npm ci`, `npm run build`, restart the service. `data/` is untouched by a rollback.
+Tag the last good commit before the event (`lb-L7` or later). To roll back (verify on the target OS): `git checkout <tag>`, `npm ci`, `npm run build`, restart the service. `data/` is untouched by a rollback.
 
 ## Supabase (only if configured)
 

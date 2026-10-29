@@ -20,7 +20,7 @@ No slice is wip or blocked. Two things inside slices are blocked: Supabase (B1) 
 ## Evidence in one place
 
 typecheck clean, lint 0 errors, 234 tests passed (1 skipped until a real sample exists), build passes, `qa:layout` clean (plus prove mode),
-lifecycle demo PASS (pre_event, live, stale, recovery, frozen, revealed, unreveal), attack 81/81, load PASS (300+30 viewers, p95 about 6 ms, 0 failures),
+lifecycle demo PASS (pre_event, live, stale, recovery, frozen, revealed, unreveal), attack 96/96, load PASS (300+30 viewers, p95 about 6 ms, 0 failures),
 `npm audit --omit=dev` 0 vulnerabilities. Screenshots are in `docs/screens/`.
 
 ## CONTRACT CHANGES
@@ -44,4 +44,4 @@ Supabase-restored rounds lack `services` and `rankDelta`. Details in BUILD_STATU
 
 ## Not done
 
-L8 (live rehearsal with real inputs), the Supabase project and advisors, a separate review of L5 to L7, rank-by-round chart, anything on a real network or phones.
+L8 (live rehearsal with real inputs), the Supabase project and advisors, rank-by-round chart, anything on a real network or phones.

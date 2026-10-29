@@ -34,11 +34,24 @@ function rssMb(pid: number): number {
 }
 
 const lat: number[] = [];
+const pageLat: number[] = [];
 const codes = new Map<number, number>();
 let stop = false;
 
 async function viewer(path_: string) {
   await sleep(Math.random() * 10_000);
+  if (path_ === '/api/board') {
+    // A fresh viewer first loads the server-rendered page (dynamic: it carries a per-request nonce).
+    const t = performance.now();
+    try {
+      const r = await fetch(base + '/');
+      await r.arrayBuffer();
+      pageLat.push(performance.now() - t);
+      codes.set(r.status, (codes.get(r.status) ?? 0) + 1);
+    } catch {
+      codes.set(0, (codes.get(0) ?? 0) + 1);
+    }
+  }
   while (!stop) {
     const t = performance.now();
     try {
@@ -57,7 +70,7 @@ const pct = (a: number[], p: number) => [...a].sort((x, y) => x - y)[Math.min(a.
 async function main() {
   spawnNode([path.join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs'), 'scripts/fake-scoreboard.ts'], { FAKE_ROUND_MS: '5000' });
   const srv = spawnNode([path.join(root, 'node_modules', 'next', 'dist', 'bin', 'next'), 'start', '-H', '127.0.0.1', '-p', '3200'], {
-    SCOREBOARD_URL: 'http://127.0.0.1:3290/scoreboard.json', EVENT_SLUG: 'load', POLL_SEC: String(POLL_SEC), DATA_DIR: dataDir, NODE_ENV: 'production',
+    SCOREBOARD_URL: 'http://127.0.0.1:3290/scoreboard.json', EVENT_SLUG: 'load', POLL_SEC: String(POLL_SEC), DATA_DIR: dataDir, NODE_ENV: 'production', SUPABASE_URL: '', SUPABASE_SECRET_KEY: '', TRUST_PROXY: 'false',
     EVENT_START_ISO: new Date(Date.now() - 60_000).toISOString(), FREEZE_AT_ISO: new Date(Date.now() + 86_400_000).toISOString(),
   });
   for (let i = 0; i < 60; i++) {
@@ -86,6 +99,7 @@ async function main() {
   const rssAfter = rssSamples.at(-1) ?? rssMb(srv.pid!);
   // Cold RSS includes JIT, module loading and the first page renders, so the leak check compares against a warmed-up
   // baseline (the third one-minute sample) and reports the cold figure for information.
+  const meaningful = rssSamples.length >= 4; // needs a warmed-up baseline (sample 3) and at least one later sample
   const rssWarm = rssSamples[Math.min(2, rssSamples.length - 1)] ?? rssBefore;
 
   const lines = fs.readFileSync(path.join(dataDir, 'snapshots.jsonl'), 'utf8').trim().split('\n').map((l) => (JSON.parse(l) as { round: number }).round);
@@ -96,10 +110,11 @@ async function main() {
   const rows: [string, string, boolean][] = [
     ['requests', `${lat.length} (${(lat.length / elapsedSec).toFixed(1)}/s), codes ${JSON.stringify(Object.fromEntries(codes))}`, true],
     ['latency p50/p95/p99 ms', `${pct(lat, 50).toFixed(1)} / ${pct(lat, 95).toFixed(1)} / ${pct(lat, 99).toFixed(1)}`, pct(lat, 95) < 100],
+    ['page load (/) p50/p95 ms', `${pct(pageLat, 50).toFixed(1)} / ${pct(pageLat, 95).toFixed(1)} (${pageLat.length} loads)`, pageLat.length > 0 && pct(pageLat, 95) < 250],
     ['5xx or connection errors', String(fivexx), fivexx === 0],
-    ['server RSS MB warmed-up -> end', `${rssWarm.toFixed(0)} -> ${rssAfter.toFixed(0)} (${growth.toFixed(1)}%; cold start was ${rssBefore.toFixed(0)}; samples ${rssSamples.map((x) => x.toFixed(0)).join(' ')})`, growth < 15],
+    ['server RSS MB warmed-up -> end', `${rssWarm.toFixed(0)} -> ${rssAfter.toFixed(0)} (${growth.toFixed(1)}%${meaningful ? '' : ', NOT MEANINGFUL: run at least 4 minutes'}; cold start was ${rssBefore.toFixed(0)}; samples ${rssSamples.map((x) => x.toFixed(0)).join(' ')})`, !meaningful || growth < 15],
     ['upstream fetches per POLL_SEC', `${(upstreamPerSec * POLL_SEC).toFixed(2)} (${hits1 - hits0} in ${elapsedSec.toFixed(0)} s)`, upstreamPerSec * POLL_SEC <= 1.15],
-    ['store writes', `${lines.length} lines, ${dupes} duplicate rounds`, dupes === 0 && lines.length <= Math.ceil(elapsedSec / 5) + 20],
+    ['store writes', `${lines.length} lines, ${dupes} duplicate rounds`, dupes === 0 && lines.length <= Math.ceil(elapsedSec / 5) + 2],
   ];
   for (const [k, v, ok] of rows) console.log(`${ok ? 'ok  ' : 'FAIL'} ${k}: ${v}`);
   const failed = rows.some(([, , ok]) => !ok);

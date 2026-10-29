@@ -14,7 +14,7 @@ Last updated: 29 Oct 2026 (overnight job, slices L0 to L7). Repo: `defcon-leader
 | L2 stores | green, Supabase part NOT exercised | `0249ccb` `lb-L2` | 166 tests (+1 skipped), build, client-bundle grep |
 | L3 collector, freeze, CLI, API | green | `d03c549` `lb-L3` | 222 to 234 tests, build, lifecycle demo PASS |
 | L4 UI | green | `cf91d8f` `lb-L4` | 234 tests (+1 skipped), build, `qa:layout` clean, prove-mode clean |
-| L5 attack and load | green (docs and script fixes in the L5 to L7 commit) | see git log, `ccc07d5` `lb-L5` | `attack` 81/81, `loadtest` PASS, `npm audit --omit=dev` 0 vulnerabilities |
+| L5 attack and load | green (docs and script fixes in the L5 to L7 commit) | see git log, `ccc07d5` `lb-L5` | `attack` 96/96, `loadtest` PASS, `npm audit --omit=dev` 0 vulnerabilities |
 | L6 deploy docs, runbook, checklist | written, NOT executed anywhere | `ccc07d5` `lb-L6` | docs only; every command marked "verify on the target OS" |
 | L7 this report | done | `ccc07d5` `lb-L7` | final gate re-run, see section 6 |
 
@@ -55,13 +55,12 @@ The skipped test is the real-sample test in `tests/source.sample.test.ts`; it ru
 | Lifecycle demo (`npm run demo:lifecycle`, production build, fake source) | PASS: pre_event, live, garbage source gives stale with data kept, recovery to live, frozen (visible round stays at 62 while the source reached 73; history max 62), wrong slug rejected, reveal gives round 74, unreveal returns to round 62 |
 | `npm run qa:layout` (headless Chrome via CDP) | clean: live at 390/768/1024/1280/1440/1920, `?tv=1`, pre_event/stale/frozen/unavailable at 390 and 1280, drawer by keyboard, no console errors, no horizontal overflow, contrast >= 4.5:1, focus rings, five-size type scale, 16 px icons, CLS 0.0000 over 25 s of polling |
 | `npm run qa:layout -- --prove` | every check fires on a deliberate violation (overflow, contrast, font size, icon size, banned word, missing focus ring, console error) |
-| `npm run attack` | 81 attempts, 0 failed (details in `docs/SECURITY_PASS.md`) |
+| `npm run attack` | 96 attempts, 0 failed after the second (reviewed, stricter) pass; 81 on the first pass (details in `docs/SECURITY_PASS.md`) |
 | `npm run loadtest -- --minutes 6` | PASS: 11 878 requests all 200, p95 5.9 ms, 0 failures, RSS +0.7% after warm-up, 1.00 upstream pull per POLL_SEC, 0 duplicate rounds. A 10-minute run was also done: see SECURITY_PASS.md for why its first verdict was FAIL and what changed in the check |
 | `npm audit --omit=dev` | 0 vulnerabilities |
 | Screenshots | `docs/screens/`: live-{390,768,1280,1920}, live-tv-1920x1080, live-drawer-{390,1280}, frozen-{390,1280}, frozen-tv-1920x1080, pre_event-{390,1280}, stale-{390,1280}, unavailable-{390,1280} |
 
-Reviews: a fresh read-only subagent reviewed L2, L3 and L4 (and L0+L1 earlier). Findings applied are listed in `docs/OVERNIGHT_LOG.md`.
-**L5, L6 and L7 were not reviewed by a separate subagent** (their changes are scripts, docs and four small code fixes that came out of the attack pass itself).
+Reviews: a fresh read-only subagent reviewed L2, L3, L4 and later L5/L6 (and L0+L1 earlier). Findings applied are listed in `docs/OVERNIGHT_LOG.md`. L7 is documentation only.
 
 ## 4. Contract (all additive; nothing was published before, so nothing was broken)
 
@@ -113,8 +112,7 @@ Reviews: a fresh read-only subagent reviewed L2, L3 and L4 (and L0+L1 earlier). 
 
 - L8 (real sample, roster, live rehearsal, comparison with the club's view): needs real inputs.
 - Pre-flight items that were Abdul's (power settings, `claude mcp list`, dashboard repo merge and push).
-- Supabase project creation and advisors (B1).
-- Review of L5 to L7 by a separate subagent.
+- Supabase project creation and advisors (B1). A second attempt to create the project through the Supabase MCP was refused by the permission classifier ("Modify Shared Resources"); it was not retried another way. The organization is on the free plan with one paused project (`pitch-under-pressure`, untouched).
 - Rank-by-round sparkline (totals only).
 
 ## 9. First things to do in the morning

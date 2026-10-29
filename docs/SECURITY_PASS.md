@@ -6,7 +6,7 @@ Run on 29 Oct 2026 against the **production build** (`next build && next start -
 
 ## Result
 
-81 attempts, 0 failed on the final run. Two real defects were found on the first run and fixed; one framework behaviour is accepted
+96 attempts, 0 failed on the final run (81 on the first complete run, 96 after a separate reviewer found gaps and vacuous checks; see below). Two real defects were found on the first run and fixed; one framework behaviour is accepted
 and mitigated outside the app.
 
 | Found | Fix |
@@ -18,6 +18,20 @@ and mitigated outside the app.
 Earlier, from the L3 review (fixed before the attack pass): one shared limiter bucket could lock every viewer out (now no limiting
 without a trustworthy client key; nginx is the limiter), a failing store no longer looks live, `unreveal` takes effect immediately
 (the cache key includes the reveal flag), roster import is atomic.
+
+## Second pass after the L5/L6 review (a fresh subagent read the attack script and the deployment docs)
+
+Gaps and weak checks it found, all fixed in `scripts/attack.ts` / `scripts/loadtest.ts`:
+- Method checks now require 405 for POST/PUT/PATCH/DELETE, 204 or 200 for OPTIONS; path-traversal probes now require 400 or 404 (before, any status below 500 passed).
+- The "flood of distinct addresses" check hit `/api/healthz`, which never touches the limiter. It now sends 10 600 distinct valid addresses to `/api/board` and then checks a new client is still served.
+- Added: forged rotating `X-Forwarded-For` with `TRUST_PROXY=false` (no lockout), 100 KB and 20 000-parameter query strings, invalid percent/UTF-8 escapes, `/_next/image` pointed at the internal source URL, `/_next/data`, duplicate and negative `Content-Length`, Host/X-Forwarded-Host poisoning on `/` followed by a clean request, 300 parallel loads of the server-rendered page, stale-to-live recovery after source misbehaviour, and a restart of the server while frozen with post-freeze rounds already on disk.
+- The hostile-name check now asserts the hostile mode actually engaged (a script-tag name and a `__proto__` team id arrived and are inert).
+- Frozen probes now parse the body: `meta.round`, every `capturedAt` (not after the freeze), history rounds, and a scan of API bodies and the page HTML for any total belonging to a later round (raw and formatted).
+- Secret scan is value-based: the first server runs with a dummy `SUPABASE_SECRET_KEY` and a dead `SUPABASE_URL`; neither value nor the source URL may appear in `.next/static`, `.next/server/app` or any served body. (This run also exercises the Supabase-down path: the board served normally from memory and JSONL.)
+- The attack and load servers now force `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and `TRUST_PROXY` to safe values so a real `.env.local` on a host cannot receive fake rounds.
+- Load test: store-write bound tightened (+2 instead of +20), page loads of `/` included (300 loads), and the RSS growth check says "not meaningful" for runs under 4 minutes instead of passing vacuously.
+
+Documentation fixes from the same review (`DEPLOY.md`): the text claiming a global app-side cap was wrong (there is none); nginx `proxy_cache_use_stale` no longer includes `error`/`timeout` (it would keep serving a "live" body with Node down); rate limits raised for a NAT'd event network and `limit_req_status 429`; request cookies are stripped; `Allow` header on the 405; a working static fallback (`error_page` plus a world-readable copy); `systemd` `ExecStart` as in the masterprompt; cache-clear step after reveal/unreveal; checklist now tests TRACE and cookies through nginx and an outage with Node stopped.
 
 ## What was NOT tested
 
@@ -39,6 +53,7 @@ without a trustworthy client key; nginx is the limiter), a failing store no long
 |---|---|---|---|---|---|---|
 | 10 min | 19 801 (33/s), all 200 | 2.6 / 5.7 / 18.9 ms | 0 | cold 113 MB, warmed-up (minute 3) 220 MB, end 227 MB (+3%) | 1.00 | 41 lines, 0 duplicates |
 | 6 min (after review fixes) | 11 878, all 200 | 3.0 / 5.9 / 16.8 ms | 0 | cold 112, warmed-up 218, end 220 (+0.7%) | 1.00 | 26 lines, 0 duplicates |
+| 5 min (strict script, includes 300 loads of `/`) | 9 878 API + 300 page loads, all 200 | 2.8 / 5.9 / 21.3 ms (page `/`: p50 20.5, p95 65.7 ms) | 0 | cold 112, warmed-up 238, end 237 (-0.4%) | 1.00 | 22 lines, 0 duplicates |
 
 The first 10-minute run reported FAIL on "RSS growth < 15%" because it compared against the cold process (113 MB) taken before any
 traffic. The memory plateaued from minute 3 (220 to 227 MB over seven minutes), so the check was changed to compare against the
@@ -96,6 +111,7 @@ share one machine, so the latency numbers are optimistic compared with a real ne
 | A7 | GET /api/board with a 100 KB header | -1 | held |
 | A7 | GET /api/board with 5000 headers | 431 | held |
 | A8 | 600 parallel connections to /api/healthz, then the board still answers | 600/600 ok, board 200 | held |
+| A8 | 300 parallel GET / (server-rendered page), then the board still answers | 300/300 ok, board 200 | held |
 | A8b | slowloris: 50 sockets sending one header byte per second for 5 s; board still answers | board 200 with 50 stalled sockets (a reverse proxy timeout is the real defence: DEPLOY.md) | held |
 | A9 | GET /api/board with Host: evil.example | 200, echoed=false | held |
 | A9 | GET /api/board with X-Forwarded-Host: evil.example | 200, echoed=false | held |
@@ -103,30 +119,44 @@ share one machine, so the latency numbers are optimistic compared with a real ne
 | A9 | GET /api/board with X-Original-URL: /api/admin | 200, echoed=false | held |
 | A9 | GET /api/board with X-Rewrite-URL: /.env | 200, echoed=false | held |
 | A9 | GET /api/board with X-HTTP-Method-Override: DELETE | 200, echoed=false | held |
-| A10 | Range: bytes=0-10 on /api/board | 200, body 3724 bytes | held |
+| A9 | / with Host/X-Forwarded-Host poisoning, then a clean request is not poisoned | poisoned 200 echoed=false, clean 200 echoed=false | held |
+| A10 | Range: bytes=0-10 on /api/board | 200, body 3705 bytes | held |
+| A18 | 100 KB query string on the board | -1 | held |
+| A18 | 20 000 parameters on history | -1 | held |
+| A18 | invalid percent escape in a value | 400 | held |
+| A18 | invalid UTF-8 in a value | 400 | held |
+| A18 | /_next/image proxying an internal URL | 400 | held |
+| A18 | /_next/data probe | 404 | held |
+| A19 | TRUST_PROXY=false: 300 requests with rotating forged X-Forwarded-For are all served (no app-side limiting, no lockout) | 200 | held |
+| A20 | duplicate Content-Length and CL+TE request shapes do not crash the server | healthz 200 afterwards | held |
+| A11 | no Set-Cookie and no CORS headers on / , /api/board , /api/history , /api/healthz , a 404 (re-check after the above) | none | held |
 | A11 | no Set-Cookie and no CORS headers on / , /api/board , /api/history , /api/healthz , a 404 | none | held |
-| A12 | security headers on / and /api/board; CSP nonce differs per request | nonce NjBkOW.. vs YzJiND.., missing [] | held |
+| A12 | security headers on / and /api/board; CSP nonce differs per request | nonce MjIwYj.. vs ZmQ0YT.., missing [] | held |
 | A13 | Cache-Control: public max-age=2 only on board/history; no-store elsewhere | public, max-age=2 \| public, max-age=2 \| no-store \| no-store | held |
-| A14 | .next/static has no source maps, and /_next/static/*.map is not served | 0 map files, map URL 404, secret strings false | held |
+| A14 | .next/static has no source maps, and /_next/static/*.map is not served | 0 map files, map URL 404, secret names false, secret/URL values in client files or served bodies false | held |
 | A15 | HTTP request smuggling shapes (CL+TE, duplicate CL) do not crash the server | healthz 200 afterwards | held |
-| A16 | hostile team names (script tag, RTL override, zero-width, 300 chars, __proto__) via the source | 30 teams, 0 names with control/bidi/over-length, raw <script> in HTML: false | held |
-| A17 | source mode "huge": previous data kept, no 5xx, no leak, server up | 200, state live, round 12 | held |
-| A17 | source mode "redirect": previous data kept, no 5xx, no leak, server up | 200, state live, round 12 | held |
-| A17 | source mode "garbage": previous data kept, no 5xx, no leak, server up | 200, state live, round 12 | held |
-| A17 | source mode "500": previous data kept, no 5xx, no leak, server up | 200, state stale, round 12 | held |
-| A17 | source mode "dupkeys": previous data kept, no 5xx, no leak, server up | 200, state stale, round 12 | held |
-| A17 | source mode "timeout": previous data kept, no 5xx, no leak, server up | 200, state stale, round 12 | held |
+| A16 | hostile team names (script tag, RTL override, zero-width, 300 chars, __proto__) via the source | hostile mode engaged=true, 30 teams, 0 names with control/bidi/over-length, raw <script> in HTML: false | held |
+| A17 | source mode "huge": previous data kept, no 5xx, no leak, server up | 200, state live, round 15 | held |
+| A17 | source mode "redirect": previous data kept, no 5xx, no leak, server up | 200, state live, round 15 | held |
+| A17 | source mode "garbage": previous data kept, no 5xx, no leak, server up | 200, state live, round 15 | held |
+| A17 | source mode "500": previous data kept, no 5xx, no leak, server up | 200, state stale, round 15 | held |
+| A17 | source mode "dupkeys": previous data kept, no 5xx, no leak, server up | 200, state stale, round 15 | held |
+| A17 | source mode "timeout": previous data kept, no 5xx, no leak, server up | 200, state stale, round 15 | held |
+| A21 | after the source recovers the board returns from stale to live | state live | held |
 | B1 | TRUST_PROXY=true: spoofed LEFT X-Forwarded-For entries do not dodge the limit (right-most is the key) | 30/60 limited for one real client; another client 200 | held |
-| B2 | TRUST_PROXY=true: a flood of distinct valid addresses cannot lock out a new client | new client 200 | held |
-| C0 | precondition: board is frozen and the source is ahead | state frozen, frozen round 108, source round 114 | held |
-| C1 | frozen: GET /api/board  | 200, max round 108 (frozen 108), later total present: false | held |
-| C1 | frozen: GET /api/board?round=999  | 200, max round 108 (frozen 108), later total present: false | held |
-| C1 | frozen: GET /api/board?t=9999999999999&at=now  | 200, max round 108 (frozen 108), later total present: false | held |
-| C1 | frozen: GET /api/history?top=30  | 200, max round 108 (frozen 108), later total present: false | held |
-| C1 | frozen: GET /  | 200, max round 108 (frozen 108), later total present: false | held |
-| C1 | frozen: GET /?round=999&reveal=1&revealed=true  | 200, max round 108 (frozen 108), later total present: false | held |
-| C1 | frozen: GET /api/board X-Reveal,Cookie,Authorization | 200, max round 108 (frozen 108), later total present: false | held |
-| C1 | frozen: GET /api/board If-None-Match | 200, max round 108 (frozen 108), later total present: false | held |
-| C1 | frozen: GET /api/board Cache-Control,Pragma | 200, max round 108 (frozen 108), later total present: false | held |
-| C1 | frozen: GET /api/board X-Forwarded-For | 200, max round 108 (frozen 108), later total present: false | held |
-| C2 | unreveal/reveal files cannot be influenced over HTTP: POST/PUT /api/reveal, /api/admin/reveal, /reveal | codes 400,405, state frozen | held |
+| B2 | TRUST_PROXY=true: a flood of distinct valid addresses cannot lock out a new client | new client after 10 600 distinct addresses: 200 | held |
+| C0 | precondition: board is frozen and the source is ahead | state frozen, frozen round 108, source round 113 | held |
+| C1 | frozen: GET /api/board  | 200, max round 108 (frozen 108), later capture time false, later totals present 0 | held |
+| C1 | frozen: GET /api/board?round=999  | 200, max round 108 (frozen 108), later capture time false, later totals present 0 | held |
+| C1 | frozen: GET /api/board?t=9999999999999&at=now  | 200, max round 108 (frozen 108), later capture time false, later totals present 0 | held |
+| C1 | frozen: GET /api/history?top=30  | 200, max round 108 (frozen 108), later capture time false, later totals present 0 | held |
+| C1 | frozen: GET /  | 200, max round 108 (frozen 108), later capture time false, later totals present 0 | held |
+| C1 | frozen: GET /?round=999&reveal=1&revealed=true  | 200, max round 108 (frozen 108), later capture time false, later totals present 0 | held |
+| C1 | frozen: GET /api/board X-Reveal,Cookie,Authorization | 200, max round 108 (frozen 108), later capture time false, later totals present 0 | held |
+| C1 | frozen: GET /api/board If-None-Match | 200, max round 108 (frozen 108), later capture time false, later totals present 0 | held |
+| C1 | frozen: GET /api/board Cache-Control,Pragma | 200, max round 108 (frozen 108), later capture time false, later totals present 0 | held |
+| C1 | frozen: GET /api/board X-Forwarded-For | 200, max round 108 (frozen 108), later capture time false, later totals present 0 | held |
+| C2 | unreveal/reveal files cannot be influenced over HTTP: POST/PUT /api/reveal, /api/admin/reveal, /reveal | codes 404,405, state frozen | held |
+| C3 | restart while frozen (post-freeze rounds on disk): GET /api/board | 200, max round 108 (frozen 108), later capture time false, later totals present 0 | held |
+| C3 | restart while frozen (post-freeze rounds on disk): GET /api/history?top=30 | 200, max round 108 (frozen 108), later capture time false, later totals present 0 | held |
+| C3 | restart while frozen (post-freeze rounds on disk): GET / | 200, max round 108 (frozen 108), later capture time false, later totals present 0 | held |

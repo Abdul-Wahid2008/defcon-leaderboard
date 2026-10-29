@@ -54,12 +54,14 @@ async function attempt(id: string, what: string, fn: () => Promise<[boolean, str
 const never5xx = (r: Res) => r.status < 500;
 const leaks = (s: string) => /SCOREBOARD_URL|SUPABASE|127\.0\.0\.1:3290|at .*\(.*:\d+:\d+\)|node_modules|ECONN|stack/i.test(s);
 
-async function startServer(env: Record<string, string>, dataName: string) {
+async function startServer(env: Record<string, string>, dataName: string, keepData = false) {
   const dir = path.join(root, 'tmp', dataName);
-  fs.rmSync(dir, { recursive: true, force: true });
+  if (!keepData) fs.rmSync(dir, { recursive: true, force: true });
   const now = Date.now();
   const srv = spawnNode([path.join(root, 'node_modules', 'next', 'dist', 'bin', 'next'), 'start', '-H', '127.0.0.1', '-p', '3200'], {
     SCOREBOARD_URL: 'http://127.0.0.1:3290/scoreboard.json', EVENT_SLUG: 'atk', POLL_SEC: '5', STALE_AFTER_SEC: '30', DATA_DIR: dir, NODE_ENV: 'production',
+    // Isolation: a real .env.local on the host must never leak in (secrets, proxy trust) or receive fake rounds.
+    SUPABASE_URL: '', SUPABASE_SECRET_KEY: '', TRUST_PROXY: 'false',
     EVENT_START_ISO: new Date(now - 3_600_000).toISOString(), FREEZE_AT_ISO: new Date(now + 3_600_000).toISOString(), ...env,
   });
   for (let i = 0; i < 80; i++) {
@@ -80,7 +82,8 @@ async function main() {
   await sleep(1500);
 
   // ---------------- server 1: normal, TRUST_PROXY=false ----------------
-  const s1 = await startServer({}, 'atk1');
+  const DUMMY_KEY = 'sb_secret_DUMMYDUMMYDUMMYDUMMYDUMMY1234';
+  const s1 = await startServer({ SUPABASE_URL: 'http://127.0.0.1:9', SUPABASE_SECRET_KEY: DUMMY_KEY }, 'atk1');
   const base = await raw({ path: '/api/board' });
   const baseJson = JSON.parse(base.body);
 
@@ -108,7 +111,8 @@ async function main() {
       const r = await raw({ method: m, path: '/api/board', body: m === 'POST' || m === 'PUT' ? '{"x":1}' : undefined, headers: { Origin: 'http://evil.example' } }).catch((e: Error) => ({ status: -1, headers: {}, body: e.message }) as Res);
       // TRACE cannot be represented as a fetch Request, so Next answers it with its own generic 500 before any of our code runs. The body is the fixed text below; nginx blocks the method (DEPLOY.md).
       const traceOk = m === 'TRACE' && r.status === 500 && r.body === 'Internal Server Error';
-      return [(never5xx(r) || r.status === -1 || traceOk) && !r.headers['access-control-allow-origin'] && !leaks(r.body) && r.body.length < 200, `${r.status}${r.status === -1 ? ' (connection refused by server)' : ''}`];
+      const want = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(m) ? r.status === 405 : m === 'OPTIONS' ? r.status === 204 || r.status === 200 : m === 'TRACE' ? traceOk : r.status === -1 || (r.status >= 400 && r.status < 500);
+      return [want && !r.headers['access-control-allow-origin'] && !leaks(r.body) && r.body.length < 200, `${r.status}${r.status === -1 ? ' (connection refused by server)' : ''}`];
     });
   }
   await attempt('A5', 'HEAD /api/board has headers and no body', async () => {
@@ -118,7 +122,7 @@ async function main() {
   for (const p of ['/api/../.env', '/..%2f..%2fpackage.json', '/%2e%2e/%2e%2e/.env.local', '/api/%2e%2e/%2e%2e/.env', '/_next/../.env', '/%252e%252e/%252e%252e/.env', '/api/board/..;/..;/.env', '/.env', '/data/control.json', '/package.json', '/src/lib/config.ts', '/config/source-map.json', '/%00', '/api/%'] as string[]) {
     await attempt('A6', `GET ${p}`, async () => {
       const r = await raw({ path: p });
-      return [never5xx(r) && !/SCOREBOARD_URL|SUPABASE|"name": ?"defcon|teamsPath|import /.test(r.body) && !leaks(r.body), String(r.status)];
+      return [(r.status === 400 || r.status === 404) && !/SCOREBOARD_URL|SUPABASE|"name": ?"defcon|teamsPath|import /.test(r.body) && !leaks(r.body), String(r.status)];
     });
   }
   await attempt('A7', 'GET with a 100 KB path', async () => {
@@ -141,6 +145,12 @@ async function main() {
     const after = await raw({ path: '/api/board' });
     return [okN >= 590 && after.status === 200, `${okN}/600 ok, board ${after.status}`];
   });
+  await attempt('A8', '300 parallel GET / (server-rendered page), then the board still answers', async () => {
+    const rs = await Promise.all(Array.from({ length: 300 }, () => raw({ path: '/' }).catch(() => null)));
+    const okN = rs.filter((r) => r?.status === 200).length;
+    const after = await raw({ path: '/api/board' });
+    return [okN >= 295 && after.status === 200, `${okN}/300 ok, board ${after.status}`];
+  });
   await attempt('A8b', 'slowloris: 50 sockets sending one header byte per second for 5 s; board still answers', async () => {
     const socks = Array.from({ length: 50 }, () => {
       const s = net.connect(3200, '127.0.0.1');
@@ -162,6 +172,12 @@ async function main() {
       return [r.status === 200 && !echoed && JSON.parse(r.body).teams.length > 0, `${r.status}, echoed=${echoed}`];
     });
   }
+  await attempt('A9', '/ with Host/X-Forwarded-Host poisoning, then a clean request is not poisoned', async () => {
+    const bad = await raw({ path: '/', headers: { Host: 'evil.example', 'X-Forwarded-Host': 'evil.example' } });
+    const clean = await raw({ path: '/' });
+    const echoed = (r: Res) => r.body.includes('evil.example') || JSON.stringify(r.headers).includes('evil.example');
+    return [bad.status < 500 && !echoed(bad) && clean.status === 200 && !echoed(clean), `poisoned ${bad.status} echoed=${echoed(bad)}, clean ${clean.status} echoed=${echoed(clean)}`];
+  });
   await attempt('A10', 'Range: bytes=0-10 on /api/board', async () => {
     const r = await raw({ path: '/api/board', headers: { Range: 'bytes=0-10' } });
     let json = true;
@@ -171,6 +187,44 @@ async function main() {
       json = false;
     }
     return [never5xx(r) && (r.status !== 200 || json), `${r.status}, body ${r.body.length} bytes`];
+  });
+  for (const [what, p] of [
+    ['100 KB query string on the board', '/api/board?x=' + 'a'.repeat(100_000)],
+    ['20 000 parameters on history', '/api/history?' + Array.from({ length: 20_000 }, (_, i) => 'p' + i + '=1').join('&')],
+    ['invalid percent escape in a value', '/api/history?top=%ZZ'],
+    ['invalid UTF-8 in a value', '/api/history?top=%FF'],
+    ['/_next/image proxying an internal URL', '/_next/image?url=http%3A%2F%2F127.0.0.1%3A3290%2Fscoreboard.json&w=64&q=75'],
+    ['/_next/data probe', '/_next/data/x/index.json'],
+  ] as const) {
+    await attempt('A18', what, async () => {
+      const r = await raw({ path: p }).catch((e: Error) => ({ status: -1, headers: {}, body: e.message }) as Res);
+      return [r.status === -1 || (r.status >= 400 && r.status < 500), `${r.status}`];
+    });
+  }
+  await attempt('A19', 'TRUST_PROXY=false: 300 requests with rotating forged X-Forwarded-For are all served (no app-side limiting, no lockout)', async () => {
+    const codes = new Set<number>();
+    for (let i = 0; i < 300; i++) codes.add((await raw({ path: '/api/board', headers: { 'X-Forwarded-For': `9.9.${i % 200}.${i % 250}` } })).status);
+    return [codes.size === 1 && codes.has(200), `${[...codes]}`];
+  });
+  await attempt('A20', 'duplicate Content-Length and CL+TE request shapes do not crash the server', async () => {
+    for (const head of ['POST /api/board HTTP/1.1\r\nHost: x\r\nContent-Length: 4\r\nContent-Length: 9\r\n\r\nabcd', 'POST /api/board HTTP/1.1\r\nHost: x\r\nContent-Length: -1\r\n\r\n']) {
+      await new Promise<void>((res) => {
+        const s = net.connect(3200, '127.0.0.1');
+        s.on('error', () => res());
+        s.on('close', () => res());
+        s.write(head.replace(/\\r\\n/g, '\r\n'));
+        setTimeout(() => (s.destroy(), res()), 1000);
+      });
+    }
+    return [(await raw({ path: '/api/healthz' })).status === 200, 'healthz 200 afterwards'];
+  });
+  await attempt('A11', 'no Set-Cookie and no CORS headers on / , /api/board , /api/history , /api/healthz , a 404 (re-check after the above)', async () => {
+    const bad: string[] = [];
+    for (const p of ['/', '/api/board', '/api/history', '/api/healthz', '/nope', '/api/nope']) {
+      const r = await raw({ path: p, headers: { Origin: 'http://evil.example' } });
+      for (const h of Object.keys(r.headers)) if (h === 'set-cookie' || h.startsWith('access-control-')) bad.push(`${p}:${h}`);
+    }
+    return [bad.length === 0, bad.join(',') || 'none'];
   });
   await attempt('A11', 'no Set-Cookie and no CORS headers on / , /api/board , /api/history , /api/healthz , a 404', async () => {
     const paths = ['/', '/api/board', '/api/history', '/api/healthz', '/nope', '/api/nope'];
@@ -204,7 +258,12 @@ async function main() {
     const rel = '/_next/static/' + path.relative(dir, js).split(path.sep).join('/');
     const r = await raw({ path: rel + '.map' });
     const secret = files.filter((f) => /\.(js|css|html|json)$/.test(f)).some((f) => /SUPABASE_SECRET_KEY|sb_secret_|service_role|SCOREBOARD_URL/.test(fs.readFileSync(f, 'utf8')));
-    return [maps.length === 0 && r.status === 404 && !secret, `${maps.length} map files, map URL ${r.status}, secret strings ${secret}`];
+    // Value-based: this server runs with a dummy secret and URL; neither value may appear in served HTML, JSON or any built client or server-rendered file.
+    const html = (await raw({ path: '/' })).body + (await raw({ path: '/api/board' })).body + (await raw({ path: '/api/history' })).body;
+    const serverFiles = fs.existsSync(path.join(root, '.next', 'server', 'app')) ? walk(path.join(root, '.next', 'server', 'app')).filter((f) => /\.(html|rsc|json|body|meta)$/.test(f)) : [];
+    const values = ['DUMMYDUMMYDUMMYDUMMYDUMMY', '127.0.0.1:9', '127.0.0.1:3290'];
+    const valueLeak = [...files, ...serverFiles].some((f) => values.some((v) => fs.readFileSync(f, 'utf8').includes(v))) || values.some((v) => html.includes(v));
+    return [maps.length === 0 && r.status === 404 && !secret && !valueLeak, `${maps.length} map files, map URL ${r.status}, secret names ${secret}, secret/URL values in client files or served bodies ${valueLeak}`];
   });
   await attempt('A15', 'HTTP request smuggling shapes (CL+TE, duplicate CL) do not crash the server', async () => {
     await new Promise<void>((res) => {
@@ -227,7 +286,8 @@ async function main() {
     const bad = j.teams.filter((t) => /[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩﻿]/.test(t.name) || [...t.name].length > 40);
     const html = (await raw({ path: '/' })).body;
     const rawScript = html.includes('<script>alert(1)</script>');
-    return [bad.length === 0 && !rawScript, `${j.teams.length} teams, ${bad.length} names with control/bidi/over-length, raw <script> in HTML: ${rawScript}`];
+    const engaged = j.teams.some((t) => /script/i.test(t.name)) && j.teams.some((t) => t.name === '__proto__');
+    return [engaged && bad.length === 0 && !rawScript, `hostile mode engaged=${engaged}, ${j.teams.length} teams, ${bad.length} names with control/bidi/over-length, raw <script> in HTML: ${rawScript}`];
   });
   await fake('mode?m=ok');
 
@@ -243,6 +303,14 @@ async function main() {
     });
   }
   await fake('mode?m=ok');
+  await attempt('A21', 'after the source recovers the board returns from stale to live', async () => {
+    let st = '';
+    for (let i = 0; i < 30 && st !== 'live'; i++) {
+      await sleep(1000);
+      st = JSON.parse((await raw({ path: '/api/board' })).body).meta.state;
+    }
+    return [st === 'live', `state ${st}`];
+  });
   await stopServer(s1);
 
   // ---------------- server 2: TRUST_PROXY=true, limit 30/min ----------------
@@ -257,9 +325,15 @@ async function main() {
     return [limited >= 25 && other.status === 200, `${limited}/60 limited for one real client; another client ${other.status}`];
   });
   await attempt('B2', 'TRUST_PROXY=true: a flood of distinct valid addresses cannot lock out a new client', async () => {
-    for (let i = 0; i < 300; i++) await raw({ path: '/api/healthz', headers: { 'X-Forwarded-For': `192.0.2.${i % 250}` } });
+    // More distinct valid addresses than the limiter table holds (10 000), against the route that actually uses the limiter.
+    for (let batch = 0; batch < 53; batch++) {
+      await Promise.all(Array.from({ length: 200 }, (_, k) => {
+        const n = batch * 200 + k;
+        return raw({ path: '/api/board', headers: { 'X-Forwarded-For': `10.${(n >> 16) & 255}.${(n >> 8) & 255}.${n & 255}` } }).catch(() => null);
+      }));
+    }
     const r = await raw({ path: '/api/board', headers: { 'X-Forwarded-For': '198.51.100.77' } });
-    return [r.status === 200, `new client ${r.status}`];
+    return [r.status === 200, `new client after 10 600 distinct addresses: ${r.status}`];
   });
   await stopServer(s2);
 
@@ -270,9 +344,24 @@ async function main() {
   await sleep(26_000); // freeze passes; the source keeps advancing
   const frozen = JSON.parse((await raw({ path: '/api/board' })).body);
   const cur = (await (await fetch('http://127.0.0.1:3290/scoreboard.json')).json()) as { currentRound: number; teams: { totalPoints: number }[] };
-  const topNow = Math.max(...cur.teams.map((t) => t.totalPoints));
-  const topFrozen = Math.max(...frozen.teams.map((t: { total: number }) => t.total));
   await attempt('C0', 'precondition: board is frozen and the source is ahead', async () => [frozen.meta.state === 'frozen' && cur.currentRound > frozen.meta.round + 3, `state ${frozen.meta.state}, frozen round ${frozen.meta.round}, source round ${cur.currentRound}`]);
+  const frozenTotals = new Set<number>(frozen.teams.map((t: { total: number }) => t.total));
+  const laterTotals = cur.teams.map((t) => t.totalPoints).filter((v) => !frozenTotals.has(v));
+  const nf = new Intl.NumberFormat('en', { maximumFractionDigits: 3 });
+  const freezeMs = Date.parse(new Date(now + 20_000).toISOString());
+  const frozenProbe = (r: Res, p: string): [boolean, string] => {
+    const text = r.body;
+    let maxRound = 0;
+    let lateStamp = false;
+    if (p.startsWith('/api/board') && r.status === 200) {
+      const j = JSON.parse(text);
+      maxRound = j.meta.round;
+      lateStamp = Date.parse(j.meta.capturedAt) > freezeMs;
+    } else if (p.startsWith('/api/history') && r.status === 200) maxRound = Math.max(...(JSON.parse(text).rounds as number[]));
+    else maxRound = Math.max(0, ...[...text.matchAll(/(?:\\?"round\\?":|Round )(\d+)/g)].map((m) => Number(m[1])));
+    const later = laterTotals.filter((v) => text.includes(`"total":${v}`) || text.includes(`"totalPoints":${v}`) || text.includes(nf.format(v)));
+    return [r.status < 500 && maxRound <= frozen.meta.round && !lateStamp && later.length === 0, `${r.status}, max round ${maxRound} (frozen ${frozen.meta.round}), later capture time ${lateStamp}, later totals present ${later.length}`];
+  };
   const probes: [string, Record<string, string>][] = [
     ['/api/board', {}], ['/api/board?round=999', {}], ['/api/board?t=9999999999999&at=now', {}], ['/api/history?top=30', {}],
     ['/', {}], ['/?round=999&reveal=1&revealed=true', {}], ['/api/board', { 'X-Reveal': '1', Cookie: 'revealed=true', Authorization: 'Bearer x' }],
@@ -281,21 +370,22 @@ async function main() {
   for (const [p, h] of probes) {
     await attempt('C1', `frozen: GET ${p} ${Object.keys(h).join(',')}`, async () => {
       const r = await raw({ path: p, headers: h });
-      const text = r.body;
-      const m = /"round":(\d+)/.exec(text);
-      const later = text.includes(String(topNow)) && topNow !== topFrozen;
-      const histRounds = p.startsWith('/api/history') && r.status === 200 ? (JSON.parse(text).rounds as number[]) : [];
-      const maxRound = histRounds.length ? Math.max(...histRounds) : m ? Number(m[1]) : frozen.meta.round;
-      return [r.status < 500 && !later && maxRound <= frozen.meta.round, `${r.status}, max round ${maxRound} (frozen ${frozen.meta.round}), later total present: ${later}`];
+      return frozenProbe(r, p);
     });
   }
   await attempt('C2', 'unreveal/reveal files cannot be influenced over HTTP: POST/PUT /api/reveal, /api/admin/reveal, /reveal', async () => {
     const codes: number[] = [];
-    for (const p of ['/api/reveal', '/api/admin/reveal', '/reveal', '/api/control']) for (const m of ['GET', 'POST', 'PUT']) codes.push((await raw({ method: m, path: p, body: '{"revealed":true}' })).status);
+    for (const p of ['/api/reveal', '/api/admin/reveal', '/reveal', '/api/control']) for (const m of ['GET', 'POST', 'PUT']) codes.push((await raw({ method: m, path: p, body: m === 'GET' ? undefined : '{"revealed":true}' })).status);
     const after = JSON.parse((await raw({ path: '/api/board' })).body);
-    return [codes.every((c) => c === 404 || c === 405 || c === 400) && after.meta.state === 'frozen', `codes ${[...new Set(codes)]}, state ${after.meta.state}`];
+    return [codes.every((c) => c === 404 || c === 405) && after.meta.state === 'frozen', `codes ${[...new Set(codes)]}, state ${after.meta.state}`];
   });
   await stopServer(s3);
+  // Restart while frozen: snapshots.jsonl already holds rounds captured after the freeze; they must stay hidden.
+  const s4 = await startServer({ FREEZE_AT_ISO: new Date(now + 20_000).toISOString() }, 'atk3', true);
+  for (const p of ['/api/board', '/api/history?top=30', '/']) {
+    await attempt('C3', `restart while frozen (post-freeze rounds on disk): GET ${p}`, async () => frozenProbe(await raw({ path: p }), p));
+  }
+  await stopServer(s4);
 
   const failed = rows.filter((r) => !r.ok);
   const md = ['| # | Attempt | Result | Verdict |', '|---|---|---|---|', ...rows.map((r) => `| ${r.id} | ${r.attempt.replace(/\|/g, '\\|')} | ${r.result.replace(/\|/g, '\\|')} | ${r.ok ? 'held' : 'FAILED'} |`)].join('\n');

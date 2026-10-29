@@ -32,7 +32,9 @@ Tick each line with the date and who checked it. Nothing here has been done yet;
 - [ ] nginx block from `DEPLOY.md` installed; `nginx -t` passes; no `Access-Control-Allow-Origin` anywhere (`curl -I`).
 - [ ] `limit_req` / `limit_conn` verified from a second machine (a burst gets 503/429; normal polling does not).
 - [ ] `X-Forwarded-For` check: with `TRUST_PROXY=true`, a client-supplied `X-Forwarded-For: 1.2.3.4` does not change which bucket it lands in.
-- [ ] `npm run loadtest` against the production build on the host: p95 < 100 ms, zero 5xx.
+- [ ] `npm run loadtest` (stop the service first: it starts its own fake source on 3290 and its own server on 3200, and it does not exercise nginx). Then, with the service running, `hey` or `ab` against the nginx address: p95 < 100 ms, zero 5xx, 429 only above the configured rate.
+- [ ] `curl -i -X TRACE http://<host>/api/board` returns 405 through nginx; `curl -I` on `/`, `/api/board` and `/nope` shows no `Set-Cookie`.
+- [ ] Outage test: stop the Node service, wait 10 s, confirm the page through nginx does NOT show a `live` board (error page or the static fallback), then restart and confirm it recovers.
 - [ ] HTTP-only decision recorded in the runbook if there is no TLS.
 
 ## Day of
